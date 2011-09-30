@@ -1,0 +1,163 @@
+package Dezi::Doc;
+use strict;
+use warnings;
+
+our $VERSION = '0.001000';
+
+use Carp;
+use Class::XSAccessor {
+    constructor => 'new',
+    accessors => [qw( mime_type summary title content uri mtime size score )],
+};
+
+=pod
+
+=head1 NAME
+
+Dezi::Doc - a Dezi client document
+
+=head1 SYNOPSIS
+
+ # add doc to the index
+ use Dezi::Doc;
+ my $html = "<html>hello world</html>";
+ my $doc = Dezi::Doc->new(
+     mime_type => 'text/html',
+     uri       => 'foo/bar.html',
+     mtime     => time(),
+     size      => length $html,
+     content   => $html,
+ );
+ $client->index( $doc );
+ 
+ # search results are also Dezi::Doc objects
+ for my $doc (@{ $response->results }) {
+     printf("hit: %s %s\n", $doc->score, $doc->uri);
+ }
+
+=head1 DESCRIPTION
+
+Dezi::Doc represents one document in a collection.
+
+=head1 METHODS
+
+=head2 new
+
+Create new object. Takes pairs of key/values where the keys are one of:
+
+=over
+
+=item mime_type
+
+Sometimes known as the content type. A MIME type indicates the kind
+of document this is.
+
+=item uri
+
+The unique URI for the document.
+
+=item mtime
+
+Last modified time. Should be expressed in Epoch seconds.
+
+=item size
+
+Length in bytes.
+
+=item content
+
+The document's content.
+
+=back
+
+=cut
+
+=head2 score
+
+When returned from a Dezi::Response->results array,
+the score attribute is the search ranking score.
+
+=head2 title
+
+When returned from a Dezi::Response->results array,
+the title is the document's parsed title.
+
+=head2 summary
+
+When returned from a Dezi::Response->results array,
+the summary is the snipped and highlighted extract
+from the document showing query terms in context.
+
+=cut
+
+=head2 as_string_ref
+
+Returns a scalar ref pointing at a copy of content().
+
+=cut
+
+sub as_string_ref {
+    my $self    = shift;
+    my $content = $self->content;
+    return \$content;
+}
+
+1;
+
+__END__
+
+=head1 AUTHOR
+
+Peter Karman, C<< <karman at cpan.org> >>
+
+=head1 BUGS
+
+Please report any bugs or feature requests to C<bug-dezi-client at rt.cpan.org>, or through
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Dezi-Client>.  I will be notified, and then you'll
+automatically be notified of progress on your bug as I make changes.
+
+=head1 SUPPORT
+
+You can find documentation for this module with the perldoc command.
+
+    perldoc Dezi::Client
+
+
+You can also look for information at:
+
+=over 4
+
+=item * RT: CPAN's request tracker
+
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Dezi-Client>
+
+=item * AnnoCPAN: Annotated CPAN documentation
+
+L<http://annocpan.org/dist/Dezi-Client>
+
+=item * CPAN Ratings
+
+L<http://cpanratings.perl.org/d/Dezi-Client>
+
+=item * Search CPAN
+
+L<http://search.cpan.org/dist/Dezi-Client/>
+
+=back
+
+
+=head1 ACKNOWLEDGEMENTS
+
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2011 Peter Karman.
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of either: the GNU General Public License as published
+by the Free Software Foundation; or the Artistic License.
+
+See http://dev.perl.org/licenses/ for more information.
+
+
+=cut
