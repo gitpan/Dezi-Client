@@ -3,7 +3,7 @@ package Dezi::Client;
 use warnings;
 use strict;
 
-our $VERSION = '0.001000';
+our $VERSION = '0.001001';
 
 use Carp;
 use LWP::UserAgent;
@@ -13,6 +13,13 @@ use SWISH::Prog::Utils;    # for MIME types
 use JSON;
 use File::Slurp;
 use Dezi::Response;
+
+# default is to treat everything like html,
+# but we want to treat everything like text unless
+# it has an explicit extension.
+# TODO use libmagic or something better than
+# SWISH::Prog::Utils + MIME::Types
+$SWISH::Prog::Utils::DefaultExtension = 'txt';
 
 =head1 NAME
 
@@ -31,7 +38,7 @@ Dezi::Client - interact with a Dezi server
  $client->index( 'path/to/file.html' );
  
  # add/update an in-memory document to the index
- $client->index( \$html_doc, uri => 'foo/bar.html' );
+ $client->index( \$html_doc, 'foo/bar.html' );
  
  # add/update a Dezi::Doc to the index
  $client->index( $dezi_doc );
@@ -93,6 +100,12 @@ sub new {
         croak "server param required";
     }
     my $self = bless { server => delete $args{server} }, $class;
+
+    $self->{debug} = delete $args{debug} || 0;
+    if ( $self->{debug} ) {
+        require Data::Dump;
+    }
+
     $self->{ua} = LWP::UserAgent->new();
     if ( $args{search} and $args{index} ) {
         $self->{search_uri} = $self->{server} . delete $args{search};
@@ -115,6 +128,8 @@ sub new {
         }
         $self->{search_uri} = $paths->{search};
         $self->{index_uri}  = $paths->{index};
+        $self->{fields}     = $paths->{fields};
+        $self->{facets}     = $paths->{facets};
     }
 
     if (%args) {
@@ -199,6 +214,8 @@ sub index {
     $req->header( 'Content-Type' => $content_type );
     $req->content($$body_ref);    # TODO decode into bytes
 
+    $self->{debug} and Data::Dump::dump $req;
+
     return $self->{ua}->request($req);
 
 }
@@ -212,6 +229,9 @@ required key is B<q> for the query string.
 Returns a Dezi::Response object on success, or 0 on failure. Check
 the last_response() accessor for the raw HTTP::Response object.
 
+ my $resp = $client->search('q' => 'foo')
+    or die "search failed: " . $client->last_response->status_line;
+
 =cut
 
 sub search {
@@ -222,12 +242,14 @@ sub search {
     }
     my $search_uri = $self->{search_uri};
     my $query      = URI::Query->new(%args);
-    $query->replace( format => 'json' );    # force json response
+    $query->replace( t => 'json' );    # force json response
+    $query->strip('format');           # old-style name
     my $resp = $self->{ua}->get( $search_uri . '?' . $query );
     if ( !$resp->is_success ) {
         $self->{last_response} = $resp;
         return 0;
     }
+    $self->{debug} and Data::Dump::dump $resp;
     return Dezi::Response->new($resp);
 }
 
@@ -260,7 +282,7 @@ sub delete {
 
     my $server_uri = $self->{index_uri} . '/' . $uri;
     my $req = HTTP::Request->new( 'DELETE', $server_uri );
-
+    $self->{debug} and Data::Dump::dump $req;
     return $self->{ua}->request($req);
 }
 
