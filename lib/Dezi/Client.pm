@@ -3,7 +3,7 @@ package Dezi::Client;
 use warnings;
 use strict;
 
-our $VERSION = '0.001001';
+our $VERSION = '0.001002';
 
 use Carp;
 use LWP::UserAgent;
@@ -11,7 +11,7 @@ use HTTP::Request;
 use URI::Query;
 use SWISH::Prog::Utils;    # for MIME types
 use JSON;
-use File::Slurp;
+use Search::Tools;
 use Dezi::Response;
 
 # default is to treat everything like html,
@@ -81,6 +81,10 @@ params are not passed to new(), then the server will be
 interrogated at initial connect for the correct paths
 for searching and indexing.
 
+=item server_params I<params>
+
+Passed internally to URI::Query and appended to server I<url>.
+
 =item search I<path>
 
 The URI path for searching. Dezi defaults to B</search>.
@@ -112,7 +116,13 @@ sub new {
         $self->{index_uri}  = $self->{server} . delete $args{index};
     }
     else {
-        my $resp = $self->{ua}->get( $self->{server} );
+        my $uri = $self->{server};
+        if ( $args{server_params} ) {
+            $self->{server_params}
+                = URI::Query->new( delete $args{server_params} );
+            $uri .= '?' . $self->{server_params};
+        }
+        my $resp = $self->{ua}->get($uri);
         if ( !$resp->is_success ) {
             croak $resp->status_line;
         }
@@ -139,7 +149,7 @@ sub new {
     return $self;
 }
 
-=head2 index( I<doc> [, I<uri>, I<content-type>] )
+=head2 index( I<doc> [, I<uri>, I<content-type>, I<GET_params>] )
 
 Add or update a document. I<doc> should be one of:
 
@@ -175,18 +185,22 @@ determine the result. Example:
     die "Failed to add path/to/foo.html to the Dezi index!";
  }
 
+I<GET_params> is an optional value. It is passed to URI::Query->new()
+internally and appended to the search_server/index URL.
+
 =cut
 
 sub index {
-    my $self         = shift;
-    my $doc          = shift or croak "doc required";
-    my $uri          = shift;                           # optional
-    my $content_type = shift;                           # optional
+    my $self           = shift;
+    my $doc            = shift or croak "doc required";
+    my $uri            = shift;                           # optional
+    my $content_type   = shift;                           # optional
+    my $payload_params = shift;                           # optional
 
     my $body_ref;
 
     if ( !ref $doc ) {
-        my $buf = read_file($doc);
+        my $buf = Search::Tools->slurp($doc);
         if ( !defined $buf ) {
             croak "unable to read $doc: $!";
         }
@@ -209,6 +223,12 @@ sub index {
     }
 
     my $server_uri = $self->{index_uri} . '/' . $uri;
+    if ($payload_params) {
+        $server_uri .= '?' . URI::Query->new($payload_params);
+    }
+    elsif ( $self->{server_params} ) {
+        $server_uri .= '?' . $self->{server_params};
+    }
     my $req = HTTP::Request->new( 'POST', $server_uri );
     $content_type ||= SWISH::Prog::Utils->mime_type($uri);
     $req->header( 'Content-Type' => $content_type );
@@ -244,6 +264,9 @@ sub search {
     my $query      = URI::Query->new(%args);
     $query->replace( t => 'json' );    # force json response
     $query->strip('format');           # old-style name
+    if ( $self->{server_params} ) {
+        $query .= $self->{server_params};
+    }
     my $resp = $self->{ua}->get( $search_uri . '?' . $query );
     if ( !$resp->is_success ) {
         $self->{last_response} = $resp;
@@ -281,6 +304,9 @@ sub delete {
     my $uri = shift or croak "uri required";
 
     my $server_uri = $self->{index_uri} . '/' . $uri;
+    if ( $self->{server_params} ) {
+        $server_uri .= '?' . $self->{server_params};
+    }
     my $req = HTTP::Request->new( 'DELETE', $server_uri );
     $self->{debug} and Data::Dump::dump $req;
     return $self->{ua}->request($req);

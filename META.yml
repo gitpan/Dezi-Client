@@ -1,14 +1,16 @@
 ---
 abstract: 'interact with a Dezi server'
 author:
+  - 'Peter Karman, C<< <karman at cpan.org> >>'
   - 'Peter Karman <karman@cpan.org>'
 build_requires:
-  ExtUtils::MakeMaker: 6.42
+  ExtUtils::MakeMaker: 6.36
   Test::More: 0
 configure_requires:
-  ExtUtils::MakeMaker: 6.42
+  ExtUtils::MakeMaker: 6.36
 distribution_type: module
-generated_by: 'Module::Install version 0.92'
+dynamic_config: 1
+generated_by: 'Module::Install version 1.06'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -21,7 +23,6 @@ no_index:
 requires:
   Carp: 0
   Class::XSAccessor: 0
-  File::Slurp: 0
   HTTP::Request: 0
   JSON: 0
   LWP::UserAgent: 0
@@ -33,4 +34,4 @@ resources:
   homepage: https://github.com/karpet/dezi-client-perl
   license: http://dev.perl.org/licenses/
   repository: git://github.com/karpet/dezi-client-perl.git
-version: 0.001001
+version: 0.001002
