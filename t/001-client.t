@@ -2,9 +2,10 @@
 use strict;
 use warnings;
 
-use Test::More tests => 21;
+use Test::More tests => 22;
 use File::Slurp;
 use Data::Dump qw( dump );
+use JSON;
 
 use_ok('Dezi::Client');
 use_ok('Dezi::Doc');
@@ -12,7 +13,7 @@ use_ok('Dezi::Doc');
 SKIP: {
 
     diag("set DEZI_URL to test Dezi::Client") unless $ENV{DEZI_URL};
-    skip "set DEZI_URL to test Dezi::Client", 19 unless $ENV{DEZI_URL};
+    skip "set DEZI_URL to test Dezi::Client", 20 unless $ENV{DEZI_URL};
 
     # open a connection
     ok( my $client = Dezi::Client->new( server => $ENV{DEZI_URL}, ),
@@ -44,6 +45,10 @@ SKIP: {
         "Dezi::Doc converts to XML automatically" );
     ok( $resp->is_success, "auto XML success" );
 
+    # commit our changes
+    is( decode_json( $client->commit()->content )->{success},
+        1, "/commit changes" );
+
     # remove a document from the index
 
     ok( $resp = $client->delete('foo/bar.html'), "delete foo/bar.html" );
@@ -61,9 +66,9 @@ SKIP: {
         ok( $result->uri, "get result uri" );
         diag(
             sprintf(
-                "--\n uri: %s\n title: %s\n score: %s\n swishdescription: %s\n",
-                $result->uri, $result->title, $result->score,
-                ( $result->get_field('swishdescription')->[0] || '' ),
+                "--\n uri: %s\n title: %s\n score: %s\n summary: %s\n",
+                $result->uri,   $result->title,
+                $result->score, $result->summary,
             )
         );
     }

@@ -3,7 +3,7 @@ package Dezi::Client;
 use warnings;
 use strict;
 
-our $VERSION = '0.001002';
+our $VERSION = '0.001003';
 
 use Carp;
 use LWP::UserAgent;
@@ -114,6 +114,10 @@ sub new {
     if ( $args{search} and $args{index} ) {
         $self->{search_uri} = $self->{server} . delete $args{search};
         $self->{index_uri}  = $self->{server} . delete $args{index};
+        $self->{commit_uri}
+            = $self->{server} . ( delete $args{commit} || 'commit' );
+        $self->{rollback_uri}
+            = $self->{server} . ( delete $args{rollback} || 'rollback' );
     }
     else {
         my $uri = $self->{server};
@@ -136,10 +140,12 @@ sub new {
                 . $resp->status_line . " "
                 . $resp->decoded_content;
         }
-        $self->{search_uri} = $paths->{search};
-        $self->{index_uri}  = $paths->{index};
-        $self->{fields}     = $paths->{fields};
-        $self->{facets}     = $paths->{facets};
+        $self->{search_uri}   = $paths->{search};
+        $self->{index_uri}    = $paths->{index};
+        $self->{commit_uri}   = $paths->{commit};
+        $self->{rollback_uri} = $paths->{rollback};
+        $self->{fields}       = $paths->{fields};
+        $self->{facets}       = $paths->{facets};
     }
 
     if (%args) {
@@ -177,7 +183,7 @@ I<scalar_ref> case, where I<uri> is required. If specified,
 the values are passed explicitly in the HTTP headers to the Dezi
 server. If not specified, they are (hopefully intelligently) guessed at.
 
-Returns a HTTP::Response object which can be interrogated to
+Returns a L<HTTP::Response> object which can be interrogated to
 determine the result. Example:
 
  my $resp = $client->index( file => 'path/to/foo.html' );
@@ -243,11 +249,11 @@ sub index {
 =head2 search( I<params> )
 
 Fetch search results from a Dezi server. I<params> can be
-any key/value pair as described in Search::OpenSearch. The only
+any key/value pair as described in L<Search::OpenSearch::Engine>. The only
 required key is B<q> for the query string.
 
-Returns a Dezi::Response object on success, or 0 on failure. Check
-the last_response() accessor for the raw HTTP::Response object.
+Returns a L<Dezi::Response> object on success, or 0 on failure. Check
+the last_response() accessor for the raw L<HTTP::Response> object.
 
  my $resp = $client->search('q' => 'foo')
     or die "search failed: " . $client->last_response->status_line;
@@ -262,7 +268,7 @@ sub search {
     }
     my $search_uri = $self->{search_uri};
     my $query      = URI::Query->new(%args);
-    $query->replace( t => 'json' );    # force json response
+    $query->replace( t => 'JSON' );    # force json response
     $query->strip('format');           # old-style name
     if ( $self->{server_params} ) {
         $query .= $self->{server_params};
@@ -278,7 +284,7 @@ sub search {
 
 =head2 last_response
 
-Returns the last HTTP::Response object that the Client object
+Returns the last L<HTTP::Response> object that the Client object
 interacted with. Useful when search() returns false (HTTP failure).
 Example:
 
@@ -309,7 +315,71 @@ sub delete {
     }
     my $req = HTTP::Request->new( 'DELETE', $server_uri );
     $self->{debug} and Data::Dump::dump $req;
-    return $self->{ua}->request($req);
+    $self->{last_response} = $self->{ua}->request($req);
+    return $self->{last_response};
+}
+
+=head2 commit
+
+Send a COMMIT HTTP request to the server. This is only
+useful is the server has been configured with:
+
+ engine_config => {
+     autocommit => 0,
+ }
+
+Otherwise the server will not act on the index
+and will return a 400 response, indicating an
+invalid request.
+
+If successful and at least one document
+was committed, returns a 200 response.
+
+If successful and no documents were committed,
+returns a 204, indicating no un-committed changes
+were pending.
+
+=cut
+
+sub commit {
+    my $self       = shift;
+    my $server_uri = $self->{commit_uri} . '/';
+    if ( $self->{server_params} ) {
+        $server_uri .= '?' . $self->{server_params};
+    }
+    my $req = HTTP::Request->new( 'POST', $server_uri );
+    $self->{debug} and Data::Dump::dump $req;
+    $self->{last_response} = $self->{ua}->request($req);
+    return $self->{last_response};
+}
+
+=head2 rollback
+
+Send a ROLLBACK HTTP request to the server. This is only
+useful is the server has been configured with:
+
+ engine_config => {
+     autocommit => 0,
+ }
+
+Otherwise the server will not act on the index
+and will return a 400 response, indicating an
+invalid request.
+
+If successful returns a 200 response.
+
+=cut
+
+sub rollback {
+    my $self       = shift;
+    my $server_uri = $self->{rollback_uri} . '/';
+    if ( $self->{server_params} ) {
+        $server_uri .= '?' . $self->{server_params};
+    }
+    my $req = HTTP::Request->new( 'POST', $server_uri );
+    $self->{debug} and Data::Dump::dump $req;
+    $self->{last_response} = $self->{ua}->request($req);
+    return $self->{last_response};
 }
 
 1;
