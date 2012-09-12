@@ -3,7 +3,7 @@ package Dezi::Client;
 use warnings;
 use strict;
 
-our $VERSION = '0.001003';
+our $VERSION = '0.002000';
 
 use Carp;
 use LWP::UserAgent;
@@ -93,6 +93,14 @@ The URI path for searching. Dezi defaults to B</search>.
 
 The URI path for indexing. Dezi defaults to B</index>.
 
+=item username I<username>
+
+=item password I<password>
+
+If present, the username and password credentials will
+be set in each internal HTTP::Request object for any
+non-idempotent action (delete(), index(), commit(), rollback()).
+ 
 =back
 
 =cut
@@ -147,6 +155,11 @@ sub new {
         $self->{fields}       = $paths->{fields};
         $self->{facets}       = $paths->{facets};
     }
+
+    $self->{_creds} = {
+        username => delete $args{username},
+        password => delete $args{password},
+    };
 
     if (%args) {
         croak "Invalid params to new(): " . join( ", ", keys %args );
@@ -240,6 +253,13 @@ sub index {
     $req->header( 'Content-Type' => $content_type );
     $req->content($$body_ref);    # TODO decode into bytes
 
+    if (   defined $self->{_creds}->{username}
+        && defined $self->{_creds}->{password} )
+    {
+        $req->authorization_basic( $self->{_creds}->{username},
+            $self->{_creds}->{password} );
+    }
+
     $self->{debug} and Data::Dump::dump $req;
 
     return $self->{ua}->request($req);
@@ -303,6 +323,9 @@ sub last_response {
 
 Remove a document from the server. I<uri> must be the document's URI.
 
+Returns a L<HTTP::Response> object which can be interrogated to
+determine the result. A 200 response indicates success.
+
 =cut
 
 sub delete {
@@ -314,6 +337,12 @@ sub delete {
         $server_uri .= '?' . $self->{server_params};
     }
     my $req = HTTP::Request->new( 'DELETE', $server_uri );
+    if (   defined $self->{_creds}->{username}
+        && defined $self->{_creds}->{password} )
+    {
+        $req->authorization_basic( $self->{_creds}->{username},
+            $self->{_creds}->{password} );
+    }
     $self->{debug} and Data::Dump::dump $req;
     $self->{last_response} = $self->{ua}->request($req);
     return $self->{last_response};
@@ -322,10 +351,10 @@ sub delete {
 =head2 commit
 
 Send a COMMIT HTTP request to the server. This is only
-useful is the server has been configured with:
+useful if the server has been configured with:
 
  engine_config => {
-     autocommit => 0,
+     auto_commit => 0,
  }
 
 Otherwise the server will not act on the index
@@ -336,8 +365,11 @@ If successful and at least one document
 was committed, returns a 200 response.
 
 If successful and no documents were committed,
-returns a 204, indicating no un-committed changes
+returns a 204, indicating zero un-committed changes
 were pending.
+
+commit() returns a L<HTTP::Response> object which can be interrogated to
+determine the result.
 
 =cut
 
@@ -348,6 +380,12 @@ sub commit {
         $server_uri .= '?' . $self->{server_params};
     }
     my $req = HTTP::Request->new( 'POST', $server_uri );
+    if (   defined $self->{_creds}->{username}
+        && defined $self->{_creds}->{password} )
+    {
+        $req->authorization_basic( $self->{_creds}->{username},
+            $self->{_creds}->{password} );
+    }
     $self->{debug} and Data::Dump::dump $req;
     $self->{last_response} = $self->{ua}->request($req);
     return $self->{last_response};
@@ -356,17 +394,20 @@ sub commit {
 =head2 rollback
 
 Send a ROLLBACK HTTP request to the server. This is only
-useful is the server has been configured with:
+useful if the server has been configured with:
 
  engine_config => {
-     autocommit => 0,
+     auto_commit => 0,
  }
 
 Otherwise the server will not act on the index
 and will return a 400 response, indicating an
 invalid request.
 
-If successful returns a 200 response.
+If successful the server returns a 200 response.
+
+rollback() returns a L<HTTP::Response> object which can be interrogated to
+determine the result.
 
 =cut
 
@@ -377,6 +418,12 @@ sub rollback {
         $server_uri .= '?' . $self->{server_params};
     }
     my $req = HTTP::Request->new( 'POST', $server_uri );
+    if (   defined $self->{_creds}->{username}
+        && defined $self->{_creds}->{password} )
+    {
+        $req->authorization_basic( $self->{_creds}->{username},
+            $self->{_creds}->{password} );
+    }
     $self->{debug} and Data::Dump::dump $req;
     $self->{last_response} = $self->{ua}->request($req);
     return $self->{last_response};
@@ -424,10 +471,6 @@ L<http://cpanratings.perl.org/d/Dezi-Client>
 L<http://search.cpan.org/dist/Dezi-Client/>
 
 =back
-
-
-=head1 ACKNOWLEDGEMENTS
-
 
 =head1 COPYRIGHT & LICENSE
 
