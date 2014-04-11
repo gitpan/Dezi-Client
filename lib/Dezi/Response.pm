@@ -1,20 +1,22 @@
 package Dezi::Response;
-use strict;
-use warnings;
-
-our $VERSION = '0.002002';
-
+use Moo;
+use Types::Standard qw( Str Num Int ArrayRef InstanceOf Maybe );
 use Carp;
 use JSON;
-
-# TODO expose all attributes?
-use Class::XSAccessor {
-    accessors => [
-        qw( results total search_time build_time query fields facets suggestions )
-    ],
-};
-
 use Dezi::Doc;
+use namespace::sweep;
+
+our $VERSION = '0.003000';
+
+has 'http_response' => ( is => 'ro', isa => InstanceOf ['HTTP::Response'] );
+has 'results'       => ( is => 'rw', isa => Maybe      [ArrayRef] );
+has 'total'         => ( is => 'rw', isa => Int );
+has 'search_time'   => ( is => 'rw', isa => Num );
+has 'build_time'    => ( is => 'rw', isa => Num );
+has 'query'         => ( is => 'rw', isa => Str );
+has 'fields'        => ( is => 'rw', isa => Maybe      [ArrayRef] );
+has 'facets'        => ( is => 'rw', isa => Maybe      [ArrayRef] );
+has 'suggestions'   => ( is => 'rw', isa => Maybe      [ArrayRef] );
 
 =pod
 
@@ -55,12 +57,44 @@ This class is used internally by Dezi::Client.
 Returns a new response. I<http_response> should be a HTTP::Response
 object from a Dezi JSON response.
 
+=head2 BUILDARGS
+
+Allows for single argument I<http_response> instead of named pair.
+
+=head2 BUILD
+
+Initializes objects.
+
 =cut
 
-sub new {
-    my $class     = shift;
-    my $http_resp = shift or croak "HTTP::Response required";
-    my $json      = from_json( $http_resp->decoded_content );
+around BUILDARGS => sub {
+    my $orig  = shift;
+    my $class = shift;
+
+    if ( @_ == 1 ) {
+        return $class->$orig( http_response => $_[0] );
+    }
+    else {
+        return $class->$orig(@_);
+    }
+};
+
+sub BUILD {
+    my $self = shift;
+    my $json = from_json( $self->http_response->decoded_content );
+
+    # inflate json into self, except results
+    for my $attr ( keys %$json ) {
+        next if $attr eq 'results';
+
+        # set in hash directly if we have no method (yet)
+        if ( $self->can($attr) ) {
+            $self->$attr( $json->{$attr} );
+        }
+        else {
+            $self->{$attr} = $json->{$attr};
+        }
+    }
     my @res;
     my @fields;
     for my $r ( @{ $json->{results} } ) {
@@ -76,8 +110,7 @@ sub new {
     }
 
     # overwrite with objects
-    $json->{results} = \@res;
-    return bless $json, $class;
+    $self->{results} = \@res;
 }
 
 =head2 results
@@ -114,6 +147,10 @@ B<Facet objects are currently hashrefs. This may change in future.>
 =head2 suggestions
 
 Returns array ref of query suggestions.
+
+=head2 http_response
+
+Returns raw HTTP:Response object.
 
 =cut
 
@@ -159,10 +196,6 @@ L<http://cpanratings.perl.org/d/Dezi-Client>
 L<http://search.cpan.org/dist/Dezi-Client/>
 
 =back
-
-
-=head1 ACKNOWLEDGEMENTS
-
 
 =head1 COPYRIGHT & LICENSE
 
