@@ -1,11 +1,11 @@
 package Dezi::Doc;
 use Moo;
-use Types::Standard qw( Str Int Num );
+use Types::Standard qw( Str Int Num HashRef );
 use Carp;
 use Search::Tools::XML;
 use namespace::sweep;
 
-our $VERSION = '0.003000';
+our $VERSION = '0.003001';
 
 has 'mime_type' => ( is => 'rw', isa => Str );
 has 'summary'   => ( is => 'rw', isa => Str );
@@ -15,6 +15,7 @@ has 'uri'       => ( is => 'rw', isa => Str );
 has 'mtime'     => ( is => 'rw', isa => Int );
 has 'size'      => ( is => 'rw', isa => Int );
 has 'score'     => ( is => 'rw', isa => Num );
+has '_fields'   => ( is => 'rw', isa => HashRef );
 
 =pod
 

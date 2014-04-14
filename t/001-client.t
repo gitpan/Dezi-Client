@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 22;
+use Test::More tests => 25;
 use File::Slurp;
 use Data::Dump qw( dump );
 use JSON;
@@ -13,7 +13,7 @@ use_ok('Dezi::Doc');
 SKIP: {
 
     diag("set DEZI_URL to test Dezi::Client") unless $ENV{DEZI_URL};
-    skip "set DEZI_URL to test Dezi::Client", 20 unless $ENV{DEZI_URL};
+    skip "set DEZI_URL to test Dezi::Client", 23 unless $ENV{DEZI_URL};
 
     # open a connection
     ok( my $client = Dezi::Client->new( server => $ENV{DEZI_URL}, ),
@@ -64,11 +64,12 @@ SKIP: {
 
         #diag( dump $result );
         ok( $result->uri, "get result uri" );
+        like( $result->mtime, qr/^\d+$/, "mtime is an int" );
         diag(
             sprintf(
-                "--\n uri: %s\n title: %s\n score: %s\n summary: %s\n",
-                $result->uri,   $result->title,
-                $result->score, $result->summary,
+                "--\n uri: %s\n title: %s\n score: %s\n summary: %s\n mtime: %s\n",
+                $result->uri,     $result->title, $result->score,
+                $result->summary, $result->mtime,
             )
         );
     }
